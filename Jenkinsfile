@@ -4,7 +4,7 @@ def sendBuildEmail() {
 Check console output at $BUILD_URL to view the results.''',
         compressLog: true, recipientProviders: [buildUser(), requestor()], subject: '$PROJECT_NAME - Build # $BUILD_NUMBER - $BUILD_STATUS!', to: 'zestabhijeet@gmail.com'
 }
- 
+
 pipeline{
     tools{
         jdk 'myjava'
@@ -55,7 +55,7 @@ pipeline{
               
           }
           stage('SonarCloud Analysis'){
- 
+
               steps{
                   echo 'running sonar analysis'
                   withCredentials([string(credentialsId: 'jenkins-token', variable: 'SONAR_TOKEN')]) {
@@ -82,13 +82,15 @@ pipeline{
 	     
           
       }
- 
+
       post {
           always {
               script {
-                  sendBuildEmail(currentBuild.currentResult)
+                  // SMTP not yet confirmed in Jenkins (Manage Jenkins > System > Extended E-mail Notification).
+                  // Uncomment once a test email has been sent successfully from that page.
+                  // sendBuildEmail()
+                  echo 'Skipping email notification - SMTP not yet configured/confirmed.'
               }
           }
       }
 }
- 
