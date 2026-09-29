@@ -20,10 +20,12 @@ GitHub → Settings → Developer settings → **Fine-grained tokens** → Gener
 sudo apt-get install -y jq curl        # Ubuntu
 # sudo dnf install -y jq                # Amazon Linux
 
-# token (readable by root only)
+# token (readable by root only) — typed at a hidden prompt, so it never lands in shell history
 sudo mkdir -p /etc/jenkins-webhook
-echo 'github_pat_XXXXXXXX' | sudo tee /etc/jenkins-webhook/github-token > /dev/null
+read -rsp "Paste GitHub token, then press Enter: " T && printf '%s' "$T" | sudo tee /etc/jenkins-webhook/github-token > /dev/null && unset T && echo
 sudo chmod 600 /etc/jenkins-webhook/github-token
+# check: length should be ~93 (github_pat_…) or 40 (ghp_…), and GitHub should answer HTTP 200
+sudo sh -c 'T=$(tr -d "[:space:]" < /etc/jenkins-webhook/github-token); echo "Token length: ${#T}"; curl -s -o /dev/null -w "HTTP %{http_code}\n" -H "Authorization: Bearer $T" https://api.github.com/repos/zestabhijeet/SonarQubeCoverageJava/hooks'
 
 # webhook updater
 sudo cp update-github-webhook.sh /usr/local/bin/
