@@ -1,0 +1,11 @@
+[Unit]
+Description=Point the GitHub webhook at this EC2 instance's current public IP
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/update-github-webhook.sh
+
+[Install]
+WantedBy=multi-user.target
