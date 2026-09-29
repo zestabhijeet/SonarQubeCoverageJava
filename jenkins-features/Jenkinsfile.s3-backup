@@ -1,0 +1,86 @@
+// 3. THINBACKUP -> AMAZON S3
+// ThinBackup (Manage Jenkins > ThinBackup) writes FULL-*/DIFF-* backup sets of
+// JENKINS_HOME to BACKUP_DIR on its own cron schedule. This job runs after it and
+// copies those sets to S3, so a backup survives loss of the Jenkins server.
+//
+// Job setup: New Item > Pipeline > Pipeline script from SCM > Git
+//   Repository: https://github.com/zestabhijeet/SonarQubeCoverageJava.git
+//   Branch: */master    Script Path: jenkins-features/Jenkinsfile.s3-backup
+// Run it once manually so Jenkins registers the parameters and the cron trigger.
+
+pipeline {
+    // ThinBackup writes to the controller's disk, so run on the built-in node
+    agent { label 'built-in' }
+
+    // ThinBackup default in README: full backup 01:00 Sunday, diff 01:00 Mon-Sat.
+    // This job uploads at ~02:00 every day, after the backup has finished.
+    triggers {
+        cron('H 2 * * *')
+    }
+
+    parameters {
+        string(name: 'BACKUP_DIR',  defaultValue: '/var/lib/jenkins/thinBackup', description: 'ThinBackup "Backup directory"')
+        string(name: 'S3_BUCKET',   defaultValue: 'zestabhijeet-jenkins-backup', description: 'Target S3 bucket (must already exist)')
+        string(name: 'S3_PREFIX',   defaultValue: 'jenkins/thinBackup',          description: 'Folder inside the bucket')
+        string(name: 'AWS_REGION',  defaultValue: 'ap-south-1',                  description: 'Bucket region')
+        booleanParam(name: 'DRY_RUN', defaultValue: false, description: 'List what would be uploaded without uploading')
+    }
+
+    options {
+        timestamps()
+        disableConcurrentBuilds()
+        buildDiscarder(logRotator(numToKeepStr: '30'))
+    }
+
+    stages {
+        stage('Check ThinBackup Output') {
+            steps {
+                sh '''
+                    set -e
+                    if [ ! -d "$BACKUP_DIR" ]; then
+                        echo "Backup directory $BACKUP_DIR not found - check Manage Jenkins > ThinBackup settings"
+                        exit 1
+                    fi
+                    echo "Backup sets found in $BACKUP_DIR:"
+                    ls -1 "$BACKUP_DIR" | grep -E '^(FULL|DIFF)-|\\.zip$' || { echo "No ThinBackup sets yet - run 'Backup Now' once"; exit 1; }
+                    du -sh "$BACKUP_DIR"
+                '''
+            }
+        }
+
+        stage('Upload to S3') {
+            steps {
+                // AWS keys are bound as env vars and masked in the log automatically
+                withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws-s3-backup']]) {
+                    sh '''
+                        set -e
+                        DRY=""
+                        if [ "$DRY_RUN" = "true" ]; then DRY="--dryrun"; fi
+                        aws s3 sync "$BACKUP_DIR" "s3://$S3_BUCKET/$S3_PREFIX/" \
+                            --region "$AWS_REGION" \
+                            --sse AES256 \
+                            --only-show-errors $DRY
+                    '''
+                }
+            }
+        }
+
+        stage('Verify Upload') {
+            when { expression { !params.DRY_RUN } }
+            steps {
+                withCredentials([[$class: 'AmazonWebServicesCredentialsBinding', credentialsId: 'aws-s3-backup']]) {
+                    sh '''
+                        set -e
+                        echo "Backup sets now in s3://$S3_BUCKET/$S3_PREFIX/:"
+                        aws s3 ls "s3://$S3_BUCKET/$S3_PREFIX/" --region "$AWS_REGION"
+                    '''
+                }
+            }
+        }
+    }
+
+    post {
+        success { echo "Jenkins backup is safe in s3://${params.S3_BUCKET}/${params.S3_PREFIX}/" }
+        failure { echo 'S3 backup FAILED - check the log above; the local ThinBackup copy is untouched.' }
+    }
+}

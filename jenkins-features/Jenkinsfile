@@ -1,0 +1,104 @@
+// CI pipeline for SonarQubeCoverageJava demonstrating three Jenkins features:
+//   1. Log filtering          -> filterlogs() from the 'shared-lib' Shared Library
+//   2. Credential hiding      -> withCredentials masking + Mask Passwords regex blacklist
+//   4. Webhook trigger        -> triggers { githubPush() } (GitHub push builds this job)
+// Feature 3 (ThinBackup -> S3) is the separate scheduled job in Jenkinsfile.s3-backup.
+//
+// Job setup: New Item > Pipeline > Pipeline script from SCM > Git
+//   Repository: https://github.com/zestabhijeet/SonarQubeCoverageJava.git
+//   Branch: */master    Script Path: jenkins-features/Jenkinsfile
+@Library('shared-lib') _
+
+// Blacklist: any text in the console log matching these patterns is replaced with ********
+def MASK_REGEXES = [
+    [key: 'password-assignments', value: '(?i)(password|passwd|pwd|secret)\\s*[=:]\\s*\\S+'],
+    [key: 'sonar-tokens',         value: '(sqp|squ|sqa)_[0-9a-f]{40}'],
+    [key: 'aws-access-keys',      value: 'AKIA[0-9A-Z]{16}'],
+    [key: 'github-tokens',        value: 'gh[pousr]_[A-Za-z0-9]{36}']
+]
+
+pipeline {
+    agent any
+
+    tools {
+        jdk 'myjava'
+        maven 'mymaven'
+    }
+
+    // 4. WEBHOOK — build on every push that GitHub sends to <jenkins-url>/github-webhook/
+    triggers {
+        githubPush()
+    }
+
+    options {
+        timestamps()
+        buildDiscarder(logRotator(numToKeepStr: '10'))
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Build & Unit Test') {
+            steps {
+                sh 'mvn -B clean test'
+            }
+            post {
+                always {
+                    junit allowEmptyResults: true, testResults: 'target/surefire-reports/*.xml'
+                }
+            }
+        }
+
+        // 2. CREDENTIAL HIDING
+        stage('Credential Masking Demo') {
+            steps {
+                // a) Credentials Binding: the bound value is masked automatically.
+                withCredentials([string(credentialsId: 'jenkins-token', variable: 'SONAR_TOKEN')]) {
+                    sh 'echo "Sonar token from credentials store: $SONAR_TOKEN"'   // prints ****
+                }
+                // b) Mask Passwords blacklist: masks anything matching MASK_REGEXES,
+                //    even values that never came from the credentials store.
+                maskPasswords(varPasswordPairs: [], varMaskRegexes: MASK_REGEXES) {
+                    sh 'echo "db password=Dummy#Pass123"'              // prints ********
+                    sh 'echo "leaked key AKIAABCDEFGHIJKLMNOP"'          // prints ********
+                }
+            }
+        }
+
+        stage('SonarCloud Analysis') {
+            steps {
+                withCredentials([string(credentialsId: 'jenkins-token', variable: 'SONAR_TOKEN')]) {
+                    maskPasswords(varPasswordPairs: [], varMaskRegexes: MASK_REGEXES) {
+                        withSonarQubeEnv('SonarCloud') {
+                            sh 'mvn -B org.sonarsource.scanner.maven:sonar-maven-plugin:sonar -Dsonar.organization=zestabhijeet -Dsonar.projectKey=com.java:SonarQubeCoverageJava -Dsonar.host.url=https://sonarcloud.io -Dsonar.token=$SONAR_TOKEN -Dsonar.sources=src/main/java -Dsonar.tests=src/test/java -Dsonar.java.binaries=target/classes -Dsonar.junit.reportPaths=target/surefire-reports'
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Package') {
+            steps {
+                sh 'mvn -B package -DskipTests'
+                archiveArtifacts artifacts: 'target/*.jar', fingerprint: true, allowEmptyArchive: true
+            }
+        }
+
+        // 1. LOG FILTERING — mark the build UNSTABLE if 'WARNING' appears 50+ times
+        stage('Log Filter') {
+            steps {
+                filterlogs('WARNING', 50)
+            }
+        }
+    }
+
+    post {
+        always {
+            echo "Build finished with result: ${currentBuild.currentResult}"
+        }
+    }
+}
