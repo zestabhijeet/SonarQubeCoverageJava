@@ -9,7 +9,7 @@
 //   Branch: */master    Script Path: jenkins-features/Jenkinsfile
 @Library('shared-lib') _
 
-// Blacklist: any text in the console log matching these patterns is replaced with ********
+// any text in the console log matching these patterns is replaced with ********
 def MASK_REGEXES = [
     [key: 'password-assignments', value: '(?i)(password|passwd|pwd|secret)\\s*[=:]\\s*\\S+'],
     [key: 'sonar-tokens',         value: '(sqp|squ|sqa)_[0-9a-f]{40}'],
