@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Demo web application that packages the pwned-passwords validator into a WAR
+  so it can run on Tomcat (see ../Dockerfile).
+  The library itself (../pom.xml) stays a plain JAR.
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>de.martinspielmann.wicket</groupId>
+    <artifactId>pwned-passwords-demo</artifactId>
+    <version>2.0.1-SNAPSHOT</version>
+    <packaging>war</packaging>
+    <name>pwned-passwords-demo</name>
+
+    <properties>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <maven.compiler.source>1.8</maven.compiler.source>
+        <maven.compiler.target>1.8</maven.compiler.target>
+    </properties>
+
+    <dependencies>
+        <!-- The validator library built from ../pom.xml (brings in wicket-core 8.0.0) -->
+        <dependency>
+            <groupId>de.martinspielmann.wicket</groupId>
+            <artifactId>wicket-pwnedpasswords-validator</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <finalName>pwned-passwords-demo</finalName>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.13.0</version>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-war-plugin</artifactId>
+                <version>3.4.0</version>
+            </plugin>
+        </plugins>
+    </build>
+</project>

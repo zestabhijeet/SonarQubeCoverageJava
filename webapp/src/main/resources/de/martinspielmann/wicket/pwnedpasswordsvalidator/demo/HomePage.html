@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html xmlns:wicket="http://wicket.apache.org">
+	<head>
+		<meta charset="utf-8" />
+		<title>Pwned Passwords Validator — Demo</title>
+		<link rel="stylesheet" href="style.css" type="text/css" media="screen" />
+	</head>
+	<body>
+		<div id="hd">
+			<div id="logo">
+				<img src="logo.png" width="50" height="50" alt="Wicket logo" />
+				<h1>Pwned Passwords Validator</h1>
+			</div>
+		</div>
+		<div id="bd">
+			<h2>Is your password safe?</h2>
+			<p>
+				Enter a password and submit. It is checked against the
+				<a href="https://haveibeenpwned.com/Passwords" target="_blank">Have I Been Pwned</a>
+				database of breached passwords. Only the first five characters of its SHA-1 hash leave the server.
+			</p>
+			<form wicket:id="form">
+				<div wicket:id="feedback"></div>
+				<input type="password" wicket:id="pw" placeholder="Password" />
+				<input type="submit" value="Check" />
+			</form>
+			<p>
+				Try <code>password123</code> to see a breached password rejected.
+			</p>
+			<p>
+				Apache Wicket version: <wicket:container wicket:id="version">x.y</wicket:container>
+			</p>
+		</div>
+		<div id="ft"></div>
+	</body>
+</html>

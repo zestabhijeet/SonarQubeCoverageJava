@@ -1,0 +1,10 @@
+.git
+.github
+**/target
+jenkins-features
+shared-lib
+shared-lib-pipelines
+*.md
+*.groovy
+Jenkinsfile
+screwdriver.yaml
